@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Harmonia • Progressive Electronic Music Therapy</title>
+<style>
+  :root{--bg1:#5b2bbf;--bg2:#9f7aea;--text:#f6f3ff;--muted:#cfc6ff;--accent:#ffd166;--accent2:#5df2d6}
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;color:var(--text);
+    background:radial-gradient(1200px 700px at 10% 10%,var(--bg2),transparent 60%),
+               radial-gradient(1200px 700px at 90% 0%,#7f56d9,transparent 60%),
+               linear-gradient(160deg,#2b164f 0%,#120a27 60%)}
+  .container{max-width:1100px;margin:0 auto;padding:24px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0}
+  .brand{display:flex;gap:12px;align-items:center}
+  .logo{width:40px;height:40px;border-radius:50%;background:conic-gradient(from 120deg,var(--accent),var(--accent2),#a78bfa)}
+  h1{margin:0;font-size:clamp(22px,4vw,32px)} .sub{color:var(--muted);font-size:14px;margin-top:4px}
+  .card{background:#ffffff0a;border:1px solid #ffffff1a;border-radius:18px;padding:18px;backdrop-filter:blur(6px);box-shadow:0 6px 30px #0003}
+  .hero{display:grid;grid-template-columns:1.1fr .9fr;gap:18px} @media(max-width:900px){.hero{grid-template-columns:1fr}}
+  .btn{border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer;background:var(--accent);color:#1c1830;box-shadow:0 6px 20px #ffd16655}
+  .btn.secondary{background:#ffffff18;color:var(--text);border:1px solid #ffffff33;box-shadow:none}
+  .chip{border:1px solid #ffffff33;background:#ffffff18;color:var(--text);padding:8px 12px;border-radius:999px;cursor:pointer}
+  .chip[data-active="true"]{background:var(--accent2);color:#10221d;border-color:transparent}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .moods,.rating{display:flex;gap:10px;flex-wrap:wrap}
+  .pill{padding:6px 10px;border-radius:999px;background:#ffffff12;border:1px solid #ffffff33}
+  .small{font-size:12px;color:var(--muted)} .hidden{display:none!important}
+  iframe{width:100%;height:420px;border:0;border-radius:12px}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <div><h1>Harmonia</h1><div class="sub">Mood playlists that adapt to your feedback.</div></div>
+    </div>
+    <div class="row">
+      <a class="btn" href="https://accounts.spotify.com/en/login" target="_blank" rel="noopener">🔗 Log in to Spotify</a>
+      <span class="pill">No API required</span>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="card">
+      <h2 style="margin:0">Start a session</h2>
+      <p class="small">Pick a mood. We’ll embed a fitting public playlist.</p>
+      <div id="moodChips" class="moods"></div>
+      <div class="row" style="margin-top:8px">
+        <button id="playBtn" class="btn secondary">✨ Load Playlist</button>
+        <span class="small">Tip: Logged-in users can open full tracks in Spotify.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0">Session settings</h3>
+      <label for="vibe" class="small">Vibe tilt</label>
+      <select id="vibe" style="width:100%;background:#0f0a20;color:var(--text);border:1px solid #ffffff33;border-radius:10px;padding:10px">
+        <option value="balanced" selected>Balanced</option>
+        <option value="chill">Chill / low energy</option>
+        <option value="focus">Deep focus</option>
+        <option value="energize">Energize</option>
+      </select>
+      <p class="small">We use this to choose the first playlist.</p>
+    </div>
+  </section>
+
+  <section id="results" style="margin-top:18px" class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">Now playing</h2>
+      <a id="openLink" class="btn secondary" href="#" target="_blank" rel="noopener">Open in Spotify</a>
+    </div>
+    <div id="embedWrap" style="margin-top:10px"></div>
+    <p id="hint" class="small" style="margin-top:6px"></p>
+  </section>
+
+  <section id="feedback" class="card hidden" style="margin-top:14px">
+    <div class="row" style="justify-content:space-between">
+      <h3 style="margin:0">How did that feel?</h3>
+      <span class="small">We’ll adapt your next playlist.</span>
+    </div>
+    <div class="rating" style="margin-top:8px">
+      <button class="btn" data-rate="good">👍 Good</button>
+      <button class="btn secondary" data-rate="moderate">😐 Moderate</button>
+      <button class="btn secondary" data-rate="bad">👎 Not for me</button>
+    </div>
+    <p id="fbMsg" class="small" style="margin-top:8px"></p>
+  </section>
+
+  <footer style="text-align:center;margin:28px 0" class="small">
+    Feedback is stored locally (no accounts, no tracking).
+  </footer>
+</div>
+
+<script>
+/* ========= Adaptive, No-API logic =========
+   We map each MOOD to playlists for:
+   - base (first play, depends on vibe)
+   - good   (more of the same / stronger)
+   - moderate (slight adjustment)
+   - bad    (pivot to alternative style)
+   Replace IDs any time with your favorites.
+*/
+const map = {
+  relax: {
+    base:      {balanced:"37i9dQZF1DX7EF8wVxBVhG", chill:"37i9dQZF1DWZd79rJ6a7lp", focus:"37i9dQZF1DXc8kgYqQLMfH", energize:"37i9dQZF1DX0UrRvztWcAU"},
+    good:      "37i9dQZF1DWZd79rJ6a7lp", // Sleep (deeper calm)
+    moderate:  "37i9dQZF1DX2MMMmM4Sgxw", // Lo-Fi Beats (a touch more groove)
+    bad:       "37i9dQZF1DX0UrRvztWcAU"  // Feel Good (brighter mood)
+  },
+  focus: {
+    base:      {balanced:"37i9dQZF1DXc8kgYqQLMfH", chill:"37i9dQZF1DX7EF8wVxBVhG", focus:"37i9dQZF1DX4sWSpwq3LiO", energize:"37i9dQZF1DX2MMMmM4Sgxw"},
+    good:      "37i9dQZF1DX2MMMmM4Sgxw", // Lo-Fi Beats
+    moderate:  "37i9dQZF1DX4sWSpwq3LiO", // Instrumental Study
+    bad:       "37i9dQZF1DX7EF8wVxBVhG"  // Peaceful Piano
+  },
+  energize: {
+    base:      {balanced:"37i9dQZF1DX8FwnYE6PRvL", chill:"37i9dQZF1DX0UrRvztWcAU", focus:"37i9dQZF1DXc8kgYqQLMfH", energize:"37i9dQZF1DX76Wlfdnj7AP"},
+    good:      "37i9dQZF1DX76Wlfdnj7AP", // Beast Mode (more intensity)
+    moderate:  "37i9dQZF1DX70RN3TfWWJh", // Workout
+    bad:       "37i9dQZF1DX0UrRvztWcAU"  // Feel Good (softer, still upbeat)
+  },
+  uplift: {
+    base:      {balanced:"37i9dQZF1DX0UrRvztWcAU", chill:"37i9dQZF1DX4WYpdgoIcn6", focus:"37i9dQZF1DXc8kgYqQLMfH", energize:"37i9dQZF1DX8FwnYE6PRvL"},
+    good:      "37i9dQZF1DWSkMjlBZAZ07", // Happy Beats
+    moderate:  "37i9dQZF1DX4WYpdgoIcn6", // Good Vibes
+    bad:       "37i9dQZF1DXc8kgYqQLMfH"  // Deep Focus (dial down)
+  },
+  sleep: {
+    base:      {balanced:"37i9dQZF1DWZd79rJ6a7lp", chill:"37i9dQZF1DWZd79rJ6a7lp", focus:"37i9dQZF1DX7EF8wVxBVhG", energize:"37i9dQZF1DX7EF8wVxBVhG"},
+    good:      "37i9dQZF1DX3bH0P2uDnWA", // White Noise
+    moderate:  "37i9dQZF1DX7EF8wVxBVhG", // Peaceful Piano
+    bad:       "37i9dQZF1DXc8kgYqQLMfH"  // Deep Focus (if too sleepy)
+  }
+};
+
+// --- simple helpers
+const $ = s => document.querySelector(s);
+function embed(playlistId){
+  $("#embedWrap").innerHTML =
+    `<iframe src="https://open.spotify.com/embed/playlist/${playlistId}" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>`;
+  $("#openLink").href = `https://open.spotify.com/playlist/${playlistId}`;
+}
+
+// --- state
+const state = { mood:"relax" };
+
+// --- render mood chips
+(function renderMoods(){
+  const wrap = $("#moodChips"); wrap.innerHTML="";
+  ["relax","focus","energize","uplift","sleep"].forEach(id=>{
+    const b = document.createElement("button");
+    b.className="chip"; b.textContent=id[0].toUpperCase()+id.slice(1);
+    b.dataset.id=id;
+    b.onclick=()=>{
+      state.mood=id;
+      [...wrap.children].forEach(x=>x.dataset.active = String(x===b));
+    };
+    if(id===state.mood) b.dataset.active="true";
+    wrap.appendChild(b);
+  });
+})();
+
+// --- choose initial playlist based on vibe
+function loadBase(){
+  const vibe = $("#vibe").value;
+  const cfg = map[state.mood].base;
+  const pid = cfg[vibe] || cfg.balanced;
+  embed(pid);
+  $("#hint").textContent = "Enjoy! Then rate below to adapt the next playlist.";
+  $("#feedback").classList.remove("hidden");
+}
+
+// --- handle adaptive feedback
+function adapt(sentiment){
+  const pid = map[state.mood][sentiment];
+  embed(pid);
+  $("#hint").textContent =
+    sentiment==="good" ? "Great! Here’s a stronger take on that vibe."
+    : sentiment==="moderate" ? "Noted. We’ve tweaked the style/energy slightly."
+    : "Got it. Pivoting to a different flavor for you.";
+
+  // save minimal feedback locally
+  const key="harmonia_feedback_adaptive";
+  const store = JSON.parse(localStorage.getItem(key) || "[]");
+  store.push({ts:new Date().toISOString(), mood:state.mood, vibe:$("#vibe").value, sentiment});
+  localStorage.setItem(key, JSON.stringify(store));
+
+  $("#fbMsg").textContent = "Thanks! Your feedback shaped this new playlist.";
+}
+
+// --- wire up
+$("#playBtn").addEventListener("click", loadBase);
+document.querySelectorAll('[data-rate]').forEach(btn=>{
+  btn.addEventListener("click",()=> adapt(btn.dataset.rate));
+});
+</script>
+</body>
+</html>
