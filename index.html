@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Harmonia • Adaptive Music Therapy (DI.FM)</title>
+<style>
+  :root{--bg1:#5b2bbf;--bg2:#9f7aea;--text:#f6f3ff;--muted:#cfc6ff;--accent:#ffd166;--accent2:#5df2d6}
+  *{box-sizing:border-box} html,body{height:100%}
+  body{
+    margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;color:var(--text);
+    background:radial-gradient(1200px 700px at 10% 10%,var(--bg2),transparent 60%),
+               radial-gradient(1200px 700px at 90% 0%,#7f56d9,transparent 60%),
+               linear-gradient(160deg,#2b164f 0%,#120a27 60%)}
+  .container{max-width:1100px;margin:0 auto;padding:24px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0}
+  .brand{display:flex;gap:12px;align-items:center}
+  .logo{width:40px;height:40px;border-radius:50%;background:conic-gradient(from 120deg,var(--accent),var(--accent2),#a78bfa)}
+  h1{margin:0;font-size:clamp(22px,4vw,32px)} .sub{color:var(--muted);font-size:14px;margin-top:4px}
+  .card{background:#ffffff0a;border:1px solid #ffffff1a;border-radius:18px;padding:18px;backdrop-filter:blur(6px);box-shadow:0 6px 30px #0003}
+  .hero{display:grid;grid-template-columns:1.1fr .9fr;gap:18px} @media(max-width:900px){.hero{grid-template-columns:1fr}}
+  .btn{border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer;background:var(--accent);color:#1c1830;box-shadow:0 6px 20px #ffd16655}
+  .btn.secondary{background:#ffffff18;color:var(--text);border:1px solid #ffffff33;box-shadow:none}
+  .chip{border:1px solid #ffffff33;background:#ffffff18;color:var(--text);padding:8px 12px;border-radius:999px;cursor:pointer}
+  .chip[data-active="true"]{background:var(--accent2);color:#10221d;border-color:transparent}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .moods,.rating{display:flex;gap:10px;flex-wrap:wrap}
+  .pill{padding:6px 10px;border-radius:999px;background:#ffffff12;border:1px solid #ffffff33}
+  .small{font-size:12px;color:var(--muted)} .hidden{display:none!important}
+  iframe{width:100%;height:520px;border:0;border-radius:12px;background:#0b0a14}
+  select{width:100%;background:#0f0a20;color:#f6f3ff;border:1px solid #ffffff33;border-radius:10px;padding:10px}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        <h1>Harmonia</h1>
+        <div class="sub">Adaptive mood music, streaming via DI.FM channels.</div>
+      </div>
+    </div>
+    <div class="row">
+      <span class="pill">Streams full-length mixes — no login needed</span>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="card">
+      <h2 style="margin:0">Start a session</h2>
+      <p class="small">Pick a mood and click “Load Channel”. Your feedback will adapt the next channel.</p>
+      <div id="moodChips" class="moods"></div>
+      <div class="row" style="margin-top:8px">
+        <button id="playBtn" class="btn">✨ Load Channel</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0">Session settings</h3>
+      <label for="vibe" class="small">Vibe tilt</label>
+      <select id="vibe">
+        <option value="balanced" selected>Balanced</option>
+        <option value="chill">Chill / Low energy</option>
+        <option value="focus">Deep Focus</option>
+        <option value="energize">Energize</option>
+      </select>
+      <p class="small">We’ll use this to choose a channel variant.</p>
+    </div>
+  </section>
+
+  <section id="results" style="margin-top:18px" class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">Now Playing</h2>
+      <a id="openLink" class="btn secondary" href="https://www.di.fm" target="_blank" rel="noopener">Open externally</a>
+    </div>
+    <div id="embedWrap" style="margin-top:10px"></div>
+    <p id="hint" class="small" style="margin-top:6px"></p>
+  </section>
+
+  <section id="feedback" class="card hidden" style="margin-top:14px">
+    <div class="row" style="justify-content:space-between">
+      <h3 style="margin:0">How did that feel?</h3>
+      <span class="small">Your feedback changes what plays next.</span>
+    </div>
+    <div class="rating" style="margin-top:8px">
+      <button class="btn" data-rate="good">👍 Good</button>
+      <button class="btn secondary" data-rate="moderate">😐 Moderate</button>
+      <button class="btn secondary" data-rate="bad">👎 Not for me</button>
+    </div>
+    <p id="fbMsg" class="small" style="margin-top:8px"></p>
+  </section>
+
+  <footer style="text-align:center;margin:28px 0" class="small">
+    © Harmonia — feedback saved locally; no accounts, no tracking.
+  </footer>
+</div>
+
+<script>
+/* ==================== DI.FM CHANNEL MAP ====================
+   Use DI.FM slugs (the part after https://www.di.fm/).
+   Example slugs that are widely available:
+   - chillout, ambient, downtempo
+   - deephouse, progressive, deeptechno
+   - trance, vocaltrance, house
+*/
+const channels = {
+  relax: {
+    base:{
+      balanced:["chillout","ambient"],
+      chill:["ambient","downtempo","chillout"],
+      focus:["ambient","deephouse"],
+      energize:["progressive","chillout"]
+    },
+    good:["chillout","ambient"],
+    moderate:["downtempo","deephouse"],
+    bad:["ambient","chillout"]
+  },
+  focus: {
+    base:{
+      balanced:["deephouse","progressive"],
+      chill:["ambient","chillout"],
+      focus:["deeptechno","deephouse"],
+      energize:["progressive","trance"]
+    },
+    good:["deephouse","deeptechno"],
+    moderate:["progressive","ambient"],
+    bad:["chillout","ambient"]
+  },
+  energize: {
+    base:{
+      balanced:["trance","progressive"],
+      chill:["deephouse","chillout"],
+      focus:["deeptechno","progressive"],
+      energize:["trance","vocaltrance"]
+    },
+    good:["trance","vocaltrance"],
+    moderate:["progressive","deephouse"],
+    bad:["chillout","ambient"]
+  },
+  uplift: {
+    base:{
+      balanced:["vocaltrance","progressive"],
+      chill:["chillout","ambient"],
+      focus:["deephouse","progressive"],
+      energize:["trance","vocaltrance"]
+    },
+    good:["vocaltrance","progressive"],
+    moderate:["house","deephouse"],
+    bad:["chillout","ambient"]
+  },
+  sleep: {
+    base:{
+      balanced:["ambient","chillout"],
+      chill:["ambient"],
+      focus:["ambient","chillout"],
+      energize:["ambient"]
+    },
+    good:["ambient"],
+    moderate:["chillout"],
+    bad:["ambient"]
+  }
+};
+
+/* ==================== HELPERS & STATE ==================== */
+const $ = s => document.querySelector(s);
+const state = { mood:"relax" };
+
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function diUrl(slug){ return `https://www.di.fm/${slug.replace(/^\/+/,'')}`; }
+
+function renderMoods(){
+  const wrap=$("#moodChips"); wrap.innerHTML="";
+  ["relax","focus","energize","uplift","sleep"].forEach(id=>{
+    const b=document.createElement("button");
+    b.className="chip"; b.textContent=id[0].toUpperCase()+id.slice(1);
+    b.onclick=()=>{ state.mood=id; [...wrap.children].forEach(c=>c.dataset.active=String(c===b)); };
+    if(id===state.mood) b.dataset.active="true";
+    wrap.appendChild(b);
+  });
+}
+
+/* ==================== EMBED CORE ==================== */
+function embedDI(slugList){
+  const list = Array.isArray(slugList) ? slugList : [slugList];
+  const slug = pick(list);
+  const url = diUrl(slug);
+  const wrap = $("#embedWrap");
+  wrap.innerHTML = `
+    <iframe src="${url}"
+            allow="autoplay"
+            referrerpolicy="no-referrer-when-downgrade"
+            sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+    ></iframe>`;
+  $("#openLink").href = url;
+}
+
+function baseForMood(){
+  const vibe=$("#vibe").value;
+  const base = channels[state.mood].base;
+  return base[vibe] || base.balanced;
+}
+
+function loadBase(){
+  embedDI(baseForMood());
+  $("#hint").textContent = "Enjoy! Then rate below to adapt the next channel.";
+  $("#feedback").classList.remove("hidden");
+}
+
+function adapt(sentiment){
+  embedDI(channels[state.mood][sentiment]);
+  $("#hint").textContent =
+    sentiment==="good" ? "Great — we’ll keep that vibe going 🎶"
+    : sentiment==="moderate" ? "Adjusted slightly to your taste."
+    : "Switching to a different flavor.";
+  const key="harmonia_feedback_difm";
+  const hist = JSON.parse(localStorage.getItem(key) || "[]");
+  hist.push({ts:new Date().toISOString(), mood:state.mood, vibe:$("#vibe").value, sentiment});
+  localStorage.setItem(key, JSON.stringify(hist));
+  $("#fbMsg").textContent = "Feedback saved locally.";
+}
+
+/* ==================== INIT ==================== */
+renderMoods();
+$("#playBtn").addEventListener("click", loadBase);
+document.querySelectorAll('[data-rate]').forEach(b=>b.addEventListener("click",()=> adapt(b.dataset.rate)));
+</script>
+</body>
+</html>
